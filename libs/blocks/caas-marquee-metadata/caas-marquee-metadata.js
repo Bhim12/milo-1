@@ -1,50 +1,78 @@
 import { createTag } from '../../utils/utils.js';
 
-export function getMetadata(el) {
-  const metadata = {};
-  for (const child of el.children) {
-    const key = child.children[0]?.textContent?.trim()?.toLowerCase();
-    const value = child.children[1]?.innerHTML?.trim();
-    if (key.match(/^image/)) {
-      metadata[key] = child.querySelector('img').src.replace(/\?.*/, '');
-    } else if (key.match(/^cta/)) {
-      const ctaLink = child.querySelectorAll('a');
-      ctaLink?.forEach((link, index) => {
-        const count = index + 1;
-        metadata[`cta${count}url`] = link.href;
-        metadata[`cta${count}text`] = link.textContent.trim();
-        /* eslint-disable no-nested-ternary */
-        metadata[`cta${count}style`] = link.parentNode.tagName === 'STRONG' ? 'blue'
-          : link.parentNode.tagName === 'EM' ? 'outline' : '';
-        /* eslint-enable no-nested-ternary */
-      });
-    } else {
-      metadata[key] = value;
-    }
-  }
-  return metadata;
+const CTA_STYLES = {
+  STRONG: 'blue',
+  EM: 'outline',
+};
+function getCtaStyle(tagName) {
+  return CTA_STYLES[tagName] || '';
 }
 
+function parseCtas(el) {
+  const a = el.querySelectorAll('a');
+  const ctaLinks = Array.from(a);
+  const ctas = {};
+
+  ctaLinks.forEach((ctaLink, index) => {
+    if (ctaLink.hasAttribute('data-modal-hash')) {
+      ctaLink.href = `${ctaLink.dataset.modalPath}${ctaLink.dataset.modalHash}`;
+    }
+    if (ctaLink.hasAttribute('target')) {
+      ctaLink.href = `${ctaLink.href}#_blank`;
+    } 
+    index += 1;
+    ctas[`cta${index}url`] = ctaLink.href || '';
+    ctas[`cta${index}text`] = ctaLink.textContent?.trim() || '';
+    ctas[`cta${index}style`] = getCtaStyle(ctaLink.parentNode?.tagName);
+  });
+
+  return ctas;
+}
+export const getMetadata = (el) => {
+  let metadata = {};
+  for (const row of el.children) {
+    const key = row.children[0].textContent.trim().toLowerCase() || '';
+    let val = row.children[1].innerHTML || '';
+    if (key.startsWith('image')) {
+      const img = row.children[1].querySelector('img');
+      val = img ? new URL(img.src).pathname : '';
+    }
+    if (key.startsWith('cta')) {
+      metadata = { ...metadata, ...parseCtas(row.children[1]) };
+    }
+    if (key.startsWith('variant')) {
+      val = val.replaceAll(',', '');
+    }
+    metadata[key] = val;
+  }
+  return metadata;
+};
 export default function init(el) {
   const metadata = getMetadata(el);
+  const additionalFields = {
+    arbitrary: `
+      promoId: ${metadata.promoid},
+      context: ${metadata.context},
+      imageTablet: ${metadata.imagetablet},
+      imageDesktop: ${metadata.imagedesktop},
+      variant: ${metadata.variant}`.trim(),
+    tags: 'caas:content-type/promotion',
+    cta1url: `${metadata.cta1url}`,
+    cta1text: `${metadata.cta1text}`,
+    cta1style: `${metadata.cta1style}`,
+    cta1target: `${metadata.cta1target}`,
+    cta2url: `${metadata.cta2url}`,
+    cta2text: `${metadata.cta2text}`,
+    cta2style: `${metadata.cta2style}`,
+    cta2target: `${metadata.cta2target}`,
+  };
 
-  // Update caas-metadata arbitrary field
-  const arbitrary = createTag('div');
-  const arbitraryKey = createTag('div', null, 'arbitrary');
-  const arbitraryValue = createTag('div', null, (`promoId: ${metadata.promoid},
-    imageTablet: ${metadata.imagetablet || ''},
-    imageDesktop: ${metadata.imagedesktop || ''},
-    variant: ${metadata.variant.toLowerCase() || ''},
-    context: ${metadata.context || ''},
-  `).replace(/\s+/g, ' '));
-  arbitrary.append(arbitraryKey, arbitraryValue);
-  el.append(arbitrary);
-
-  el.innerHTML += `<div><div>tags</div><div>caas:content-type/promotion</div></div>
-    <div><div>cta1url</div><div>${metadata.cta1url}</div></div>
-    <div><div>cta1text</div><div>${metadata.cta1text}</div></div>
-    <div><div>cta1style</div><div>${metadata.cta1style}</div></div>
-    <div><div>cta2url</div><div>${metadata.cta2url}</div></div>
-    <div><div>cta2text</div><div>${metadata.cta2text}</div></div>
-    <div><div>cta2style</div><div>${metadata.cta2style}</div></div>`;
+  for (const [key, val] of Object.entries(additionalFields)) {
+    const container = createTag('div');
+    container.innerHTML = `
+    <div data-valign="middle">${key}</div>
+    <div data-valign="middle">${val}</div>
+  `;
+    el.appendChild(container);
+  }
 }

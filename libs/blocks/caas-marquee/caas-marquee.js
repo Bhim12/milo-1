@@ -2,7 +2,7 @@ import { getMetadata } from '../caas-marquee-metadata/caas-marquee-metadata.js';
 import { createTag } from '../../utils/utils.js';
 
 // 3 seconds max wait time for marquee to load
-const MAX_WAIT_TIME = 3000;
+const WAIT_TIME_MAX = 3000;
 
 const typeSize = {
   small: ['xl', 'm', 'm'],
@@ -12,6 +12,11 @@ const typeSize = {
 };
 
 async function getAllMarquees(promoId) {
+  // To use with Shahbaz API using promoId
+  // const [language, country] = document.documentElement.lang.split('-');
+  // const endPoint = 'https://14257-chimera-feature.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
+  // const payload = `originSelection=milo&language=${language}&country=${country}&promoId=${promoId || 'homepage'}`;
+
   const endPoint = 'https://14257-chimera-feature.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
   const payload = `originSelection=milo&collectionTags=caas%3Acontent-type%2Fpromotion&marqueeId=${promoId || 'homepage'}`;
   return fetch(`${endPoint}?${payload}`).then((res) => res.json());
@@ -19,16 +24,15 @@ async function getAllMarquees(promoId) {
 
 /**
  * function getMarqueeId() : Eventually from Spectra API
- * @returns {string} id - currently marquee index (eventually will be marquee ID from Spectra)
+ * @returns {string} id - currently marquee index (eventually will be marquee ID from SpectarAI)
  */
 function getMarqueeId() {
+  // URL param to overrides SpectraAI marquee ID
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('marqueeId')) return urlParams.get('marqueeId');
 
-  const id = Math.floor(Math.random() * Math.floor(6));
-  return new Promise((resolve) => {
-    setTimeout(() => { resolve(id); }, 100);
-  });
+  // Until the Spectra API is ready, we are using this as a fallback
+  return '2d218e9a-97af-583d-b1ad-9b64786d4e92';
 }
 
 /**
@@ -42,7 +46,7 @@ function normalizeData(data) {
     desktop: data.arbitrary?.find((item) => item.key === 'imageDesktop')?.value,
   };
 
-  const metadata = {
+  const marqueeMetadata = {
     id: data.id,
     title: data.contentArea?.title,
     description: data.contentArea?.description,
@@ -60,27 +64,33 @@ function normalizeData(data) {
 
   const arbitrary = {};
   data.arbitrary?.forEach((item) => { arbitrary[item.key] = item.value; });
-  metadata.variant = arbitrary.variant || 'dark, static-links';
+  marqueeMetadata.variant = arbitrary.variant || 'dark, static-links';
 
-  return metadata;
+  return marqueeMetadata;
 }
 
 /**
  * function renderMarquee()
  * @param {HTMLElement} marquee - marquee container
- * @param {Object} data - marquee data
+ * @param {Object} data - marquee data either from chimera or fallback
  * @param {string} id - marquee id
  * @returns {void}
  */
 export function renderMarquee(marquee, data, id) {
+  console.log('renderMarquee', data, id);
+  // if the fallback marquee is already rendered, 
+  // we don't want to render the chimera marquee
   if (marquee.classList.contains('fallback')) return;
-  const metadata = data.cards ? normalizeData(data.cards[id]) : data;
+  const metadata = data.cards 
+    ? normalizeData(data.cards.find((item) => item.id === id)) 
+    : data;
 
   // remove loader
   marquee.innerHTML = '';
 
-  // configure block font sizes
+  // selaect class list based on marquee variant
   const classList = metadata.variant.split(',').map((c) => c.trim());
+  // configure block font sizes
   /* eslint-disable no-nested-ternary */
   const size = classList.includes('small') ? 'small'
     : classList.includes('medium') ? 'medium'
@@ -118,19 +128,34 @@ export function renderMarquee(marquee, data, id) {
   background.innerHTML = bgContent;
 
   // foreground content
-  const cta = metadata.cta1url
-    ? `<a 
-      class="con-button ${metadata.cta1style} button-${typeSize[size][1]} button-justified-mobile" 
-      href="${metadata.cta1url}">${metadata.cta1text}</a>`
-    : '';
+  const createLink = (url, text, style) => {
+    if (!url) return '';
+    let target = '';
+    if (url.includes('#')) {
+      const [path, hash] = url.split('#');
+      if (hash === '_blank') {
+        target = ' target="_blank"';
+      } else {  
+        return `<a 
+          class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile modal"
+          data-modal-path="${path.replace(/^.*.com/, '')}"
+          data-modal-hash="#${hash}"
+          href="#${hash}">${text}
+        </a>`;
+      }
+    } 
+    return `<a 
+        class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile"
+        href="${url}"${target}>${text}
+      </a>`;
+  };
 
-  const cta2 = metadata.cta2url
-    ? `<a 
-      class="con-button ${metadata.cta2style} button-${typeSize[size][1]} button-justified-mobile" 
-      href="${metadata.cta2url}">${metadata.cta1text}</a>`
-    : '';
+  const detail = metadata.detail ? `<p class="detail-l">${metadata.detail}</p>` : '';
+  const cta = metadata.cta1url ? createLink(metadata.cta1url, metadata.cta1text, metadata.cta1style) : '';
+  const cta2 = metadata.cta2url ? createLink(metadata.cta2url, metadata.cta2text, metadata.cta2style) : '';
 
   const fgContent = `<div class="text">
+    ${detail}
     <h1 class="heading-${typeSize[size][0]}">${metadata.title}</h1>
     <p class="body-${typeSize[size][1]}">${metadata.description}</p>
     <p class="action-area">
@@ -144,11 +169,12 @@ export function renderMarquee(marquee, data, id) {
 
   // apply marquee variant to viewer
   if (metadata.variant) {
-    const classes = metadata.variant.split(',').map((c) => c.trim());
-    marquee.classList.add(...classes);
+    const classes = metadata.variant.toLowerCase().split(' ').map((c) => c.trim());
+    classes.forEach((c) => marquee.classList.add(c));
   }
 
   marquee.append(background, foreground);
+  marquee.classList.remove('loading');
 }
 
 /**
@@ -157,9 +183,8 @@ export function renderMarquee(marquee, data, id) {
  */
 export default async function init(el) {
   const metadata = getMetadata(el);
-
-  const marquee = createTag('div', { class: `marquee split ${metadata.variant.replaceAll(',', ' ')}` });
-  marquee.innerHTML = '<div class="lds-ring LOADING"><div></div><div></div><div></div><div></div></div>';
+  const marquee = createTag('div', { class: `loading marquee split ${metadata.variant.replaceAll(',', ' ')}` });
+  marquee.innerHTML = `<div class="lds-ring LOADING"><div></div><div></div><div></div><div></div></div>`;
   el.parentNode.prepend(marquee);
 
   setTimeout(() => {
@@ -172,7 +197,7 @@ export default async function init(el) {
       renderMarquee(marquee, metadata, null);
       marquee.classList.add('fallback');
     }
-  }, MAX_WAIT_TIME);
+  }, WAIT_TIME_MAX);
 
   const selectedId = await getMarqueeId();
   const allMarqueesJson = await getAllMarquees(metadata.promoId || 'homepage');

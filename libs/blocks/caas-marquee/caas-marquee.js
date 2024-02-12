@@ -13,7 +13,7 @@ const typeSize = {
 
 async function getAllMarquees(promoId) {
   // To use with Shahbaz API using promoId
-  // const [language, country] = document.documentElement.lang.split('-');
+  const [language, country] = document.documentElement.lang.split('-');
   // const endPoint = 'https://14257-chimera-feature.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
   // const payload = `originSelection=milo&language=${language}&country=${country}&promoId=${promoId || 'homepage'}`;
 
@@ -135,22 +135,25 @@ export function renderMarquee(marquee, data, id) {
       const [path, hash] = url.split('#');
       if (hash === '_blank') {
         target = ' target="_blank"';
-      } else {
+      } else if (style === 'blue' || style === 'outline') {
         return `<a 
           class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile modal"
           data-modal-path="${path.replace(/^.*.com/, '')}"
           data-modal-hash="#${hash}"
           href="#${hash}">${text}
         </a>`;
+      } else {
+        return `<a href="${url}"${target}>${text}</a>`;
       }
+    // button link
     } else if (style === 'blue' || style === 'outline') {
       return `<a 
           class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile"
           href="${url}"${target}>${text}
         </a>`;
-    } else {
-      return `<a href="${url}"${target}>${text}</a>`;
     }
+    // text link
+    return `<a href="${url}"${target}>${text}</a>`;
   };
 
   const detail = metadata.detail ? `<p class="detail-l">${metadata.detail}</p>` : '';

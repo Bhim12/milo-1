@@ -135,7 +135,7 @@ export function renderMarquee(marquee, data, id) {
       const [path, hash] = url.split('#');
       if (hash === '_blank') {
         target = ' target="_blank"';
-      } else {  
+      } else {
         return `<a 
           class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile modal"
           data-modal-path="${path.replace(/^.*.com/, '')}"
@@ -143,11 +143,14 @@ export function renderMarquee(marquee, data, id) {
           href="#${hash}">${text}
         </a>`;
       }
-    } 
-    return `<a 
-        class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile"
-        href="${url}"${target}>${text}
-      </a>`;
+    } else if (style === 'blue' || style === 'outline') {
+      return `<a 
+          class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile"
+          href="${url}"${target}>${text}
+        </a>`;
+    } else {
+      return `<a href="${url}"${target}>${text}</a>`;
+    }
   };
 
   const detail = metadata.detail ? `<p class="detail-l">${metadata.detail}</p>` : '';

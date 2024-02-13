@@ -12,13 +12,9 @@ const typeSize = {
 };
 
 async function getAllMarquees(promoId) {
-  // To use with Shahbaz API using promoId
   const [language, country] = document.documentElement.lang.split('-');
-  // const endPoint = 'https://14257-chimera-feature.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
-  // const payload = `originSelection=milo&language=${language}&country=${country}&promoId=${promoId || 'homepage'}`;
-
   const endPoint = 'https://14257-chimera-feature.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
-  const payload = `originSelection=milo&collectionTags=caas%3Acontent-type%2Fpromotion&marqueeId=${promoId || 'homepage'}`;
+  const payload = `originSelection=milo&language=${language}&country=${country}&promoId=${promoId || 'homepage'}`;
   return fetch(`${endPoint}?${payload}`).then((res) => res.json());
 }
 

@@ -13,8 +13,8 @@ const typeSize = {
 
 async function getAllMarquees(promoId) {
   const [language, country] = document.documentElement.lang.split('-');
-  const endPoint = 'https://14257-chimera-feature.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
-  const payload = `originSelection=milo&language=${language}&country=${country}&promoId=${promoId || 'homepage'}`;
+  const endPoint = 'https://14257-chimera-stage.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
+  const payload = `originSelection=milo&language=${language}&country=${country}&promoId=${promoid || 'homepage'}`;
   return fetch(`${endPoint}?${payload}`).then((res) => res.json());
 }
 

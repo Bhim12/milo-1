@@ -37,6 +37,7 @@ function getMarqueeId() {
  * @returns {Object} metadata - marquee data
  */
 function normalizeData(data) {
+  console.log('normalizeData', data);
   const images = {
     tablet: data.arbitrary?.find((item) => item.key === 'imageTablet')?.value,
     desktop: data.arbitrary?.find((item) => item.key === 'imageDesktop')?.value,

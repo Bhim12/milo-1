@@ -73,7 +73,6 @@ function normalizeData(data) {
  * @returns {void}
  */
 export function renderMarquee(marquee, data, id) {
-  console.log('renderMarquee', data, id);
   // if the fallback marquee is already rendered,
   // we don't want to render the chimera marquee
   if (marquee.classList.contains('fallback')) return;
@@ -156,15 +155,16 @@ export function renderMarquee(marquee, data, id) {
   const cta = metadata.cta1url ? createLink(metadata.cta1url, metadata.cta1text, metadata.cta1style) : '';
   const cta2 = metadata.cta2url ? createLink(metadata.cta2url, metadata.cta2text, metadata.cta2style) : '';
 
-  const fgContent = `<div class="text">
-    ${detail}
-    <h1 class="heading-${typeSize[size][0]}">${metadata.title}</h1>
-    <p class="body-${typeSize[size][1]}">${metadata.description}</p>
-    <p class="action-area">
-      ${cta} 
-      ${cta2}
-      </p>  
-  </div>`;
+  const fgContent = `<div data-valign="middle" class="media image"></div>
+    <div class="text">
+      ${detail}
+      <h1 class="heading-${typeSize[size][0]}">${metadata.title}</h1>
+      <p class="body-${typeSize[size][1]}">${metadata.description}</p>
+      <p class="action-area">
+        ${cta}
+        ${cta2}
+        </p>
+    </div>`;
 
   const foreground = createTag('div', { class: 'foreground container' });
   foreground.innerHTML = fgContent;

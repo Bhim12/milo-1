@@ -60,7 +60,7 @@ function normalizeData(data) {
 
   const arbitrary = {};
   data.arbitrary?.forEach((item) => { arbitrary[item.key] = item.value; });
-  marqueeMetadata.variant = arbitrary.variant || 'dark, static-links';
+  marqueeMetadata.variant = arbitrary.variant.toLowerCase() || 'dark, static-links';
 
   return marqueeMetadata;
 }
@@ -155,8 +155,7 @@ export function renderMarquee(marquee, data, id) {
   const cta = metadata.cta1url ? createLink(metadata.cta1url, metadata.cta1text, metadata.cta1style) : '';
   const cta2 = metadata.cta2url ? createLink(metadata.cta2url, metadata.cta2text, metadata.cta2style) : '';
 
-  const fgContent = `<div data-valign="middle" class="media image"></div>
-    <div class="text">
+  const fgContent = `<div class="text">
       ${detail}
       <h1 class="heading-${typeSize[size][0]}">${metadata.title}</h1>
       <p class="body-${typeSize[size][1]}">${metadata.description}</p>

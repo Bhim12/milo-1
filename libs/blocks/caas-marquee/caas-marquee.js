@@ -37,7 +37,6 @@ function getMarqueeId() {
  * @returns {Object} metadata - marquee data
  */
 function normalizeData(data) {
-  console.log('normalizeData', data);
   const images = {
     tablet: data.arbitrary?.find((item) => item.key === 'imageTablet')?.value,
     desktop: data.arbitrary?.find((item) => item.key === 'imageDesktop')?.value,
@@ -203,6 +202,6 @@ export default async function init(el) {
   }, WAIT_TIME_MAX);
 
   const selectedId = await getMarqueeId();
-  const allMarqueesJson = await getAllMarquees(metadata.promoId || 'homepage');
+  const allMarqueesJson = await getAllMarquees(metadata.promoid || 'homepage');
   await renderMarquee(marquee, allMarqueesJson, selectedId);
 }

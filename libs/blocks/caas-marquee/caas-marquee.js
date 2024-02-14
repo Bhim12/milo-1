@@ -74,11 +74,11 @@ function normalizeData(data) {
  */
 export function renderMarquee(marquee, data, id) {
   console.log('renderMarquee', data, id);
-  // if the fallback marquee is already rendered, 
+  // if the fallback marquee is already rendered,
   // we don't want to render the chimera marquee
   if (marquee.classList.contains('fallback')) return;
-  const metadata = data.cards 
-    ? normalizeData(data.cards.find((item) => item.id === id)) 
+  const metadata = data.cards
+    ? normalizeData(data.cards.find((item) => item.id === id))
     : data;
 
   // remove loader
@@ -186,7 +186,7 @@ export function renderMarquee(marquee, data, id) {
 export default async function init(el) {
   const metadata = getMetadata(el);
   const marquee = createTag('div', { class: `loading marquee split ${metadata.variant.replaceAll(',', ' ')}` });
-  marquee.innerHTML = `<div class="lds-ring LOADING"><div></div><div></div><div></div><div></div></div>`;
+  marquee.innerHTML = '<div class="lds-ring LOADING"><div></div><div></div><div></div><div></div></div>';
   el.parentNode.prepend(marquee);
 
   setTimeout(() => {

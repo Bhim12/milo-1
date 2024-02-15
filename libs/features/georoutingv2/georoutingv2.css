@@ -3,7 +3,7 @@
 }
 
 .dialog-modal.locale-modal-v2 {
-  background-image: url('/libs/features/georoutingv2/img/GeoModal_BG_Map_Mobile.png');
+  /* background-image: url('/libs/features/georoutingv2/img/GeoModal_BG_Map_Mobile.png'); */
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;

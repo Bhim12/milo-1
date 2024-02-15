@@ -2,7 +2,7 @@ import { getMetadata } from '../caas-marquee-metadata/caas-marquee-metadata.js';
 import { createTag } from '../../utils/utils.js';
 
 // 3 seconds max wait time for marquee to load
-const WAIT_TIME_MAX = 3000;
+const WAIT_TIME_MAX = 1500;
 
 const typeSize = {
   small: ['xl', 'm', 'm'],
@@ -83,8 +83,8 @@ export function renderMarquee(marquee, data, id) {
   // remove loader
   marquee.innerHTML = '';
 
-  // selaect class list based on marquee variant
-  const classList = metadata.variant.split(',').map((c) => c.trim());
+  // select class list based on marquee variant
+  const classList = metadata.variant.split(' ');
   // configure block font sizes
   /* eslint-disable no-nested-ternary */
   const size = classList.includes('small') ? 'small'
@@ -93,33 +93,51 @@ export function renderMarquee(marquee, data, id) {
         : 'xlarge';
   /* eslint-enable no-nested-ternary */
 
+  // Marquee variantions
+  const isSplit = classList.includes('split');
+  const isReversed = classList.includes('row-reversed');
+
   // background content
-  const bgContent = `<div class="mobile-only">
-    <picture>
+  let bgContent = '';
+  if (isSplit) {
+    // split marquee
+    bgContent = `<picture>
       <source type="image/webp" srcset="${metadata.image}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
       <source type="image/webp" srcset="${metadata.image}?width=750&amp;format=webply&amp;optimize=medium">
-      <source type="image/jpeg" srcset="${metadata.image}?width=2000&amp;format=jpeg&amp;optimize=medium" media="(min-width: 600px)">
-      <img loading="eager" alt="" src="${metadata.image}?width=750&amp;format=jpeg&amp;optimize=medium" width="1440" height="992" fetchpriority="high">
+      <source type="image/png" srcset="${metadata.image}?width=2000&amp;format=png&amp;optimize=medium" media="(min-width: 600px)">
+      <img loading="eager" alt="" src="${metadata.image}?width=750&amp;format=png&amp;optimize=medium" width="1199" height="828" fetchpriority="high">
     </picture>
-  </div>
-  <div class="tablet-only">
-    <picture>
-      <source type="image/webp" srcset="${metadata.imagetablet}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
-      <source type="image/webp" srcset="${metadata.imagetablet}?width=750&amp;format=webply&amp;optimize=medium">
-      <source type="image/jpeg" srcset="${metadata.imagetablet}?width=2000&amp;format=jpeg&amp;optimize=medium" media="(min-width: 600px)">
-      <img loading="lazy" alt="" src="${metadata.imagetablet}?width=750&amp;format=jpeg&amp;optimize=medium" width="2048" height="520">
-  </picture>
-  </div>
-  <div class="desktop-only">
-    <picture>
-      <source type="image/webp" srcset="${metadata.imagedesktop}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
-      <source type="image/webp" srcset="${metadata.imagedesktop}?width=750&amp;format=webply&amp;optimize=medium">
-      <source type="image/png" srcset="${metadata.imagedesktop}?width=2000&amp;format=png&amp;optimize=medium" media="(min-width: 600px)">
-      <img loading="lazy" alt="" src="${metadata.imagedesktop}?width=750&amp;format=png&amp;optimize=medium" width="2400" height="813" style="object-position: 32% center;">
+    </div>`;
+  } else {
+    bgContent = `<div class="mobile-only">
+      <picture>
+        <source type="image/webp" srcset="${metadata.image}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
+        <source type="image/webp" srcset="${metadata.image}?width=750&amp;format=webply&amp;optimize=medium">
+        <source type="image/jpeg" srcset="${metadata.image}?width=2000&amp;format=jpeg&amp;optimize=medium" media="(min-width: 600px)">
+        <img loading="eager" alt="" src="${metadata.image}?width=750&amp;format=jpeg&amp;optimize=medium" width="1440" height="992" fetchpriority="high">
+      </picture>
+    </div>
+    <div class="tablet-only">
+      <picture>
+        <source type="image/webp" srcset="${metadata.imagetablet}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
+        <source type="image/webp" srcset="${metadata.imagetablet}?width=750&amp;format=webply&amp;optimize=medium">
+        <source type="image/jpeg" srcset="${metadata.imagetablet}?width=2000&amp;format=jpeg&amp;optimize=medium" media="(min-width: 600px)">
+        <img loading="lazy" alt="" src="${metadata.imagetablet}?width=750&amp;format=jpeg&amp;optimize=medium" width="2048" height="520">
     </picture>
-  </div>`;
+    </div>
+    <div class="desktop-only">
+      <picture>
+        <source type="image/webp" srcset="${metadata.imagedesktop}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
+        <source type="image/webp" srcset="${metadata.imagedesktop}?width=750&amp;format=webply&amp;optimize=medium">
+        <source type="image/png" srcset="${metadata.imagedesktop}?width=2000&amp;format=png&amp;optimize=medium" media="(min-width: 600px)">
+        <img loading="lazy" alt="" src="${metadata.imagedesktop}?width=750&amp;format=png&amp;optimize=medium" width="2400" height="813" style="object-position: 32% center;">
+      </picture>
+    </div>`;
+  }
 
-  const background = createTag('div', { class: 'background' });
+  const background = isSplit
+    ? createTag('div', { class: 'media image bleed' })
+    : createTag('div', { class: 'background' });
   background.innerHTML = bgContent;
 
   // foreground content
@@ -154,15 +172,18 @@ export function renderMarquee(marquee, data, id) {
   const detail = metadata.detail ? `<p class="detail-l">${metadata.detail}</p>` : '';
   const cta = metadata.cta1url ? createLink(metadata.cta1url, metadata.cta1text, metadata.cta1style) : '';
   const cta2 = metadata.cta2url ? createLink(metadata.cta2url, metadata.cta2text, metadata.cta2style) : '';
+  const reversedFiller = isReversed && !isSplit
+    ? '<div data-valign="middle" class="media image"></div>'
+    : '';
 
-  const fgContent = `<div class="text">
+  const fgContent = `${reversedFiller}<div class="text">
       ${detail}
       <h1 class="heading-${typeSize[size][0]}">${metadata.title}</h1>
       <p class="body-${typeSize[size][1]}">${metadata.description}</p>
       <p class="action-area">
         ${cta}
         ${cta2}
-        </p>
+      </p>
     </div>`;
 
   const foreground = createTag('div', { class: 'foreground container' });

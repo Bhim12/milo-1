@@ -19,11 +19,11 @@ function parseCtas(el) {
     }
     if (ctaLink.hasAttribute('target')) {
       ctaLink.href = `${ctaLink.href}#_blank`;
-    } 
-    index += 1;
-    ctas[`cta${index}url`] = ctaLink.href || '';
-    ctas[`cta${index}text`] = ctaLink.textContent?.trim() || '';
-    ctas[`cta${index}style`] = getCtaStyle(ctaLink.parentNode?.tagName);
+    }
+    const ctaIndex = index + 1;
+    ctas[`cta${ctaIndex}url`] = ctaLink.href || '';
+    ctas[`cta${ctaIndex}text`] = ctaLink.textContent?.trim() || '';
+    ctas[`cta${ctaIndex}style`] = getCtaStyle(ctaLink.parentNode?.tagName);
   });
 
   return ctas;

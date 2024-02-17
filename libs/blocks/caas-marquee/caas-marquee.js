@@ -1,34 +1,136 @@
+// TODO: Fix tablet responsive class issue
+// TODO: Figure out workaround if segments API takes too long to load
+// TODO: Test network latency and if code handles that correctly
+// TODO: Go through all code paths to make sure no exceptions occur
+// TODO: Fix variants inconsistently supporting both ',' and '' (lines 95, 115, 198, 213)
+// TODO: Update SEGMENT_MAP with final from Martech team
+// TODO: Update Spectra AI endpoint to final one (instead of pointing to local Chimera IO instance)
+
 import { getMetadata } from '../caas-marquee-metadata/caas-marquee-metadata.js';
-import { createTag } from '../../utils/utils.js';
+import { createTag, getConfig } from '../../utils/utils.js';
 
-// 3 seconds max wait time for marquee to load
-const WAIT_TIME_MAX = 1500;
-
-const typeSize = {
-  small: ['xl', 'm', 'm'],
-  medium: ['xl', 'm', 'm'],
-  large: ['xxl', 'xl', 'l'],
-  xlarge: ['xxl', 'xl', 'l'],
+// TODO: Final list needs to come from Target List before release
+const SEGMENT_MAP = {
+  '5a5fd14e-f4ca-49d2-9f87-835df5477e3c': 'PHSP',
+  '09bc4ba3-ebed-4d05-812d-a1fb1a7e82ae': 'IDSN',
+  '25ede755-7181-4be2-801e-19f157c005ae': 'ILST',
+  '07609803-48a0-4762-be51-94051ccffb45': 'PPRO',
+  '73c3406b-32a2-4465-abf3-2d415b9b1f4f': 'AEFT',
+  'bf632803-4412-463d-83c5-757dda3224ee': 'CCSN',
 };
 
-async function getAllMarquees(promoId) {
-  const [language, country] = document.documentElement.lang.split('-');
-  const endPoint = 'https://14257-chimera-stage.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
-  const payload = `originSelection=milo&language=${language}&country=${country}&promoId=${promoId || 'homepage'}`;
-  return fetch(`${endPoint}?${payload}`).then((res) => res.json());
+const WIDTHS = {
+  split: 1199,
+  mobile: 1440,
+  tablet: 2048,
+  desktop: 2400,
+};
+
+const HEIGHTS = {
+  split: 828,
+  mobile: 992,
+  tablet: 520,
+  desktop: 813,
+};
+
+const LANA_OPTIONS = {
+  tags: 'caasMarquee',
+};
+
+const BUTTON_STYLES = ['blue', 'outline'];
+
+function isProd() {
+  const { host } = window.location;
+  return !(host.includes('hlx.page')
+    || host.includes('localhost')
+    || host.includes('hlx.live')
+    || host.includes('stage.adobe')
+    || host.includes('corp.adobe'));
+}
+
+// Our Chimera-SM BE has no caching on lower tiered environments (as of now) and requests will time out for authors
+// showing them fallback content.
+const REQUEST_TIMEOUT = isProd() ? 1500 : 10000;
+
+const TEXT_SIZE = {
+  small: 'm',
+  medium: 'm',
+  large: 'xl',
+  xlarge: 'xl',
+};
+
+const HEADING_SIZE = {
+  small: 'xl',
+  medium: 'xl',
+  large: 'xxl',
+  xlarge: 'xxl',
+};
+
+const IMAGE_EXTENSIONS = /^.*\.(jpg|jpeg|png|gif|bmp|svg|webp|tiff|ico|avif|jfif)$/;
+const VIDEO_EXTENSIONS = /^.*\.(mp4|mpeg|mpg|mov|wmv|avi|webm|ogg)$/;
+const VALID_MODAL_RE = /fragments(.*)#[a-zA-Z0-9_-]+$/;
+
+let segments = ['default'];
+
+// See https://experienceleague.adobe.com/docs/experience-platform/destinations/catalog/personalization/custom-personalization.html?lang=en
+// for more information on how to integrate with this API.
+window.addEventListener('alloy_sendEvent', (e) => {
+  if (e.detail.type === 'pageView') {
+    const mappedUserSegments = [];
+    const userSegmentIds = e.detail?.result?.destinations?.[0]?.segments || [];
+    for (let userSegmentId of userSegmentIds) {
+      if (SEGMENT_MAP[userSegmentId]) {
+        mappedUserSegments.push(SEGMENT_MAP[userSegmentId]);
+      }
+    }
+    if (mappedUserSegments.length) {
+      segments = mappedUserSegments;
+    }
+  }
+});
+
+async function getAllMarquees(promoId, origin) {
+  // TODO: Update this to https://14257-chimera.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection before release
+  const endPoint = 'https://14257-chimera-sanrai.adobeioruntime.net/api/v1/web/chimera-0.0.1/sm-collection';
+  const payload = `originSelection=${origin}&promoId=${promoId}&language=en&country=US`;
+
+  // { signal: AbortSignal.timeout(TIMEOUT_TIME) } is way to cancel a request after T seconds using fetch
+  // See https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static
+  return fetch(`${endPoint}?${payload}`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT) }).then((res) => res.json()).catch(error => {
+    window.lana?.log(`getAllMarquees failed: ${error}`, LANA_OPTIONS);
+  });
 }
 
 /**
  * function getMarqueeId() : Eventually from Spectra API
- * @returns {string} id - currently marquee index (eventually will be marquee ID from SpectarAI)
+ * @returns {string} id - currently marquee index (eventually will be marquee ID from Spectra)
  */
-function getMarqueeId() {
-  // URL param to overrides SpectraAI marquee ID
+async function getMarqueeId() {
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('marqueeId')) return urlParams.get('marqueeId');
+  const visitedLinks = [document.referrer];
 
-  // Until the Spectra API is ready, we are using this as a fallback
-  return '2d218e9a-97af-583d-b1ad-9b64786d4e92';
+  if (segments.includes('default')) {
+    window.lana?.log('Segment didn\'t load in time, sending default profile to Spectra AI', LANA_OPTIONS);
+  }
+
+  // { signal: AbortSignal.timeout(TIMEOUT_TIME) } cancel a request after T seconds using fetch
+  // See https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static
+
+  // TODO: Update this to final Spectra AI model before release
+  const response = await fetch('https://14257-chimera-sanrai.adobeioruntime.net/api/v1/web/chimera-0.0.1/models', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': 'ChimeraAcom',
+    },
+    body: `{"endpoint":"community-recom-v1","contentType":"application/json","payload":{"data":{"visitedLinks": ${visitedLinks}, "segments": ${segments}}}}`,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+  }).catch((error) => {
+    window.lana?.log(`getMarqueeId failed: ${error}`, LANA_OPTIONS);
+  });
+  const json = await response.json();
+  return json?.data?.[0]?.content_id || '';
 }
 
 /**
@@ -38,54 +140,133 @@ function getMarqueeId() {
  */
 function normalizeData(data) {
   const images = {
-    tablet: data.arbitrary?.find((item) => item.key === 'imageTablet')?.value,
-    desktop: data.arbitrary?.find((item) => item.key === 'imageDesktop')?.value,
+    tablet: data.arbitrary?.find((item) => item.key === 'imageTablet')?.value || '',
+    desktop: data.arbitrary?.find((item) => item.key === 'imageDesktop')?.value || '',
   };
 
-  const marqueeMetadata = {
-    id: data.id,
-    title: data.contentArea?.title,
-    description: data.contentArea?.description,
-    detail: data.contentArea?.detailText,
-    image: data.styles?.backgroundImage,
-    imagetablet: images.tablet,
-    imagedesktop: images.desktop,
-    cta1url: data.footer[0].right[0]?.href,
-    cta1text: data.footer[0]?.right[0]?.text,
-    cta1style: data.footer[0]?.right[0]?.style,
-    cta2url: data.footer[0]?.center[0]?.href,
-    cta2text: data.footer[0]?.center[0]?.text,
-    cta2style: data.footer[0]?.center[0]?.style,
+  const metadata = {
+    id: data.id || '',
+    title: data.contentArea?.title || '',
+    description: data.contentArea?.description || '',
+    details: data.contentArea?.detailText || '',
+    image: data.styles?.backgroundImage || '',
+    imagetablet: images.tablet || '',
+    imagedesktop: images.desktop || '',
+    cta1url: data.footer[0].right[0]?.href || '',
+    cta1text: data.footer[0]?.right[0]?.text || '',
+    cta1style: data.footer[0]?.right[0]?.style || '',
+    cta2url: data.footer[0]?.center[0]?.href || '',
+    cta2text: data.footer[0]?.center[0]?.text || '',
+    cta2style: data.footer[0]?.center[0]?.style || '',
   };
 
   const arbitrary = {};
   data.arbitrary?.forEach((item) => { arbitrary[item.key] = item.value; });
-  marqueeMetadata.variant = arbitrary.variant.toLowerCase() || 'dark, static-links';
+  metadata.variant = arbitrary.variant || 'dark, static-links';
+  metadata.backgroundcolor = arbitrary.backgroundColor;
 
-  return marqueeMetadata;
+  return metadata;
+}
+
+function getVideoHtml(src) {
+  return `<video autoplay muted playsinline> <source src="${src}" type="video/mp4"></video>`
+}
+
+function getImageHtml(src, screen) {
+  const format = (screen === 'desktop' || screen === 'split') ? 'png' : 'jpeg';
+  const style = (screen === 'desktop') ? 'style="object-position: 32% center;"' : '';
+  const fetchPriority = (screen === 'mobile') ? 'fetchpriority="high"' : '';
+  const loadingType = (screen === 'mobile' || screen === 'split') ? 'eager' : 'lazy';
+  const width = WIDTHS[screen];
+  const height = HEIGHTS[screen];
+  return `<picture>
+        <source type="image/webp" srcset="${src}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
+        <source type="image/webp" srcset="${src}?width=750&amp;format=webply&amp;optimize=medium">
+        <source type="image/${format}" srcset="${src}?width=2000&amp;format=${format}&amp;optimize=medium" media="(min-width: 600px)">
+        <img loading="${loadingType}" alt src="${src}?width=750&amp;format=${format}&amp;optimize=medium" width="${width}" height="${height}" ${fetchPriority} ${style}>
+  </picture>`
+}
+
+function getContent(src, screen) {
+  const isImage = IMAGE_EXTENSIONS.test(src);
+  const isVideo = VIDEO_EXTENSIONS.test(src);
+  let inner = '';
+  if (isImage) {
+    inner = getImageHtml(src, screen);
+  }
+  if (isVideo) {
+    inner = getVideoHtml(src);
+  }
+  if (screen === 'split') {
+    return `<div data-valign="middle" class="asset image bleed">${inner}</div>`
+  }
+  return `<div class=${screen}-only>${inner}</div>`
+}
+
+function getLoadingSpinnerHtml() {
+  const spinner = `<div class="lds-ring LOADING">
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>`;
+  return spinner;
+}
+
+/*
+  Note: Modal must be written exactly in this format to be picked up by milo decorators.
+  Other formats/structures will not work.
+  <a
+    href="#abc"
+    data-modal-path="/fragment/path-to-fragment"
+    data-modal-hash="#abc">
+      Some Modal Text
+  </a>
+ */
+function getModalHtml(ctaUrl, classes, ctaText) {
+  const [fragment, hash] = ctaUrl.split('#');
+  return `<a href="#${hash}" data-modal-path="${fragment}" data-modal-hash="#${hash}" daa-ll="${ctaText}" class="modal link-block ${classes}">${ctaText}</a>`
+}
+
+const isValidModal = (u) => VALID_MODAL_RE.test(u);
+
+function getCtaHtml(url, text, classes) {
+  if (isValidModal(url)) {
+    return getModalHtml(url, classes, text);
+  }
+  return url ? `<a class="${classes}" href="${url}"> ${text} </a>` : '';
+}
+
+function getCtaClasses(ctaStyle, size) {
+  return BUTTON_STYLES.includes(ctaStyle) 
+    ? `con-button ${ctaStyle} button-${TEXT_SIZE[size]} button-justified-mobile` 
+    : '';
 }
 
 /**
  * function renderMarquee()
  * @param {HTMLElement} marquee - marquee container
- * @param {Object} data - marquee data either from chimera or fallback
+ * @param {Object} data - marquee data
  * @param {string} id - marquee id
  * @returns {void}
  */
-export function renderMarquee(marquee, data, id) {
-  // if the fallback marquee is already rendered,
-  // we don't want to render the chimera marquee
-  if (marquee.classList.contains('fallback')) return;
-  const metadata = data.cards
-    ? normalizeData(data.cards.find((item) => item.id === id))
-    : data;
+export function renderMarquee(marquee, data, id, fallback) {
+  const chosen = data?.cards?.find((obj) => obj.id === id);
+  const shouldRenderMarquee = data?.cards?.length && chosen;
+  const metadata = shouldRenderMarquee ? normalizeData(chosen) : fallback;
 
   // remove loader
   marquee.innerHTML = '';
+  if (metadata.backgroundcolor) {
+    marquee.style.backgroundColor = metadata.backgroundcolor;
+  }
 
-  // select class list based on marquee variant
-  const classList = metadata.variant.split(' ');
   // configure block font sizes
+  const classList = metadata.variant.split(',').map((c) => c.trim());
+  const isSplit = metadata.variant.includes('split');
+  const isReversed = metadata.variant.includes('row-reversed');
+
+  // TODO: Update this to using a map to prevent nested ternaries
   /* eslint-disable no-nested-ternary */
   const size = classList.includes('small') ? 'small'
     : classList.includes('medium') ? 'medium'
@@ -93,110 +274,62 @@ export function renderMarquee(marquee, data, id) {
         : 'xlarge';
   /* eslint-enable no-nested-ternary */
 
-  // Marquee variantions
-  const isSplit = classList.includes('split');
-  const isReversed = classList.includes('row-reversed');
-
   // background content
-  let bgContent = '';
+  const mobileBgContent = getContent(metadata.image, 'mobile');
+  const tabletBgContent = getContent(metadata.imagetablet, 'tablet');
+  const desktopBgContent = getContent(metadata.imagedesktop, 'desktop');
+  const splitContent = getContent(metadata.imagedesktop, 'split');
+
+  const bgContent = `${mobileBgContent}${tabletBgContent}${desktopBgContent}`;
+  let background = createTag('div', { class: 'background' });
   if (isSplit) {
-    // split marquee
-    bgContent = `<picture>
-      <source type="image/webp" srcset="${metadata.image}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
-      <source type="image/webp" srcset="${metadata.image}?width=750&amp;format=webply&amp;optimize=medium">
-      <source type="image/png" srcset="${metadata.image}?width=2000&amp;format=png&amp;optimize=medium" media="(min-width: 600px)">
-      <img loading="eager" alt="" src="${metadata.image}?width=750&amp;format=png&amp;optimize=medium" width="1199" height="828" fetchpriority="high">
-    </picture>
-    </div>`;
+    const parser = new DOMParser();
+    background = parser.parseFromString(splitContent, 'text/html').body.childNodes[0];
   } else {
-    bgContent = `<div class="mobile-only">
-      <picture>
-        <source type="image/webp" srcset="${metadata.image}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
-        <source type="image/webp" srcset="${metadata.image}?width=750&amp;format=webply&amp;optimize=medium">
-        <source type="image/jpeg" srcset="${metadata.image}?width=2000&amp;format=jpeg&amp;optimize=medium" media="(min-width: 600px)">
-        <img loading="eager" alt="" src="${metadata.image}?width=750&amp;format=jpeg&amp;optimize=medium" width="1440" height="992" fetchpriority="high">
-      </picture>
-    </div>
-    <div class="tablet-only">
-      <picture>
-        <source type="image/webp" srcset="${metadata.imagetablet}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
-        <source type="image/webp" srcset="${metadata.imagetablet}?width=750&amp;format=webply&amp;optimize=medium">
-        <source type="image/jpeg" srcset="${metadata.imagetablet}?width=2000&amp;format=jpeg&amp;optimize=medium" media="(min-width: 600px)">
-        <img loading="lazy" alt="" src="${metadata.imagetablet}?width=750&amp;format=jpeg&amp;optimize=medium" width="2048" height="520">
-    </picture>
-    </div>
-    <div class="desktop-only">
-      <picture>
-        <source type="image/webp" srcset="${metadata.imagedesktop}?width=2000&amp;format=webply&amp;optimize=medium" media="(min-width: 600px)">
-        <source type="image/webp" srcset="${metadata.imagedesktop}?width=750&amp;format=webply&amp;optimize=medium">
-        <source type="image/png" srcset="${metadata.imagedesktop}?width=2000&amp;format=png&amp;optimize=medium" media="(min-width: 600px)">
-        <img loading="lazy" alt="" src="${metadata.imagedesktop}?width=750&amp;format=png&amp;optimize=medium" width="2400" height="813" style="object-position: 32% center;">
-      </picture>
-    </div>`;
+    background.innerHTML = bgContent;
   }
 
-  const background = isSplit
-    ? createTag('div', { class: 'media image bleed' })
-    : createTag('div', { class: 'background' });
-  background.innerHTML = bgContent;
-
-  // foreground content
-  const createLink = (url, text, style) => {
-    if (!url) return '';
-    let target = '';
-    if (url.includes('#')) {
-      const [path, hash] = url.split('#');
-      if (hash === '_blank') {
-        target = ' target="_blank"';
-      } else if (style === 'blue' || style === 'outline') {
-        return `<a 
-          class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile modal"
-          data-modal-path="${path.replace(/^.*.com/, '')}"
-          data-modal-hash="#${hash}"
-          href="#${hash}">${text}
-        </a>`;
-      } else {
-        return `<a href="${url}"${target}>${text}</a>`;
-      }
-    // button link
-    } else if (style === 'blue' || style === 'outline') {
-      return `<a 
-          class="con-button ${style} button-${typeSize[size][1]} button-justified-mobile"
-          href="${url}"${target}>${text}
-        </a>`;
-    }
-    // text link
-    return `<a href="${url}"${target}>${text}</a>`;
-  };
-
-  const detail = metadata.detail ? `<p class="detail-l">${metadata.detail}</p>` : '';
-  const cta = metadata.cta1url ? createLink(metadata.cta1url, metadata.cta1text, metadata.cta1style) : '';
-  const cta2 = metadata.cta2url ? createLink(metadata.cta2url, metadata.cta2text, metadata.cta2style) : '';
+  const cta1Classes = getCtaClasses(metadata.cta1style, size);
+  const cta2Classes = getCtaClasses(metadata.cta2style, size);
   const reversedFiller = isReversed && !isSplit
     ? '<div data-valign="middle" class="media image"></div>'
     : '';
 
+  // foreground content
+  const cta = getCtaHtml(metadata.cta1url, metadata.cta1text, cta1Classes);
+  const cta2 = getCtaHtml(metadata.cta2url, metadata.cta2text, cta2Classes);
+
   const fgContent = `${reversedFiller}<div class="text">
-      ${detail}
-      <h1 class="heading-${typeSize[size][0]}">${metadata.title}</h1>
-      <p class="body-${typeSize[size][1]}">${metadata.description}</p>
-      <p class="action-area">
-        ${cta}
-        ${cta2}
-      </p>
-    </div>`;
+    <p class="detail-l">${metadata.details}</p>
+    <h1 class="heading-${HEADING_SIZE[size]}">${metadata.title}</h1>
+    <p class="body-${TEXT_SIZE[size]}">${metadata.description}</p>
+    <p class="action-area">
+      ${cta} 
+      ${cta2}
+      </p>  
+  </div>`;
 
   const foreground = createTag('div', { class: 'foreground container' });
   foreground.innerHTML = fgContent;
 
   // apply marquee variant to viewer
   if (metadata.variant) {
-    const classes = metadata.variant.toLowerCase().split(' ').map((c) => c.trim());
-    classes.forEach((c) => marquee.classList.add(c));
+    const classes = metadata.variant.split(' ').map((c) => c.trim());
+    marquee.classList.add(...classes);
   }
 
+  // Note: Added data-block so marquee can be picked up by milo analytics decorators
+  addAnalytics(marquee);
   marquee.append(background, foreground);
-  marquee.classList.remove('loading');
+}
+
+function addAnalytics(marquee) {
+  marquee.setAttribute('data-block', '');
+}
+
+async function loadFallback(marquee, fallbackVariants, metadata) {
+  marquee.classList.add(...fallbackVariants);
+  await renderMarquee(marquee, [], '', metadata);
 }
 
 /**
@@ -205,23 +338,33 @@ export function renderMarquee(marquee, data, id) {
  */
 export default async function init(el) {
   const metadata = getMetadata(el);
-  const marquee = createTag('div', { class: `loading marquee ${metadata.variant.replaceAll(',', ' ')}` });
-  marquee.innerHTML = '<div class="lds-ring LOADING"><div></div><div></div><div></div><div></div></div>';
+  const promoId = metadata.promoid;
+  const origin = getConfig().chimeraOrigin || metadata.origin;
+
+  const marquee = createTag('div', { class: 'marquee' });
+
+  // Only in the case of a fallback should we use the variant fields from the viewer table.
+  const fallbackVariants = metadata.variant.split(',').map((c) => c.trim());
+  marquee.innerHTML = getLoadingSpinnerHtml();
   el.parentNode.prepend(marquee);
 
-  setTimeout(() => {
-    // In case of failure
-    if (marquee.children.length !== 2) {
-      // If there is a fallback marquee provided, we use it.
-      // Otherwise, we use this strings as the last resort fallback
-      metadata.title = metadata.title || 'Welcome to Adobe';
-      metadata.description = metadata.description || 'Do it all with Adobe Creative Cloud.';
-      renderMarquee(marquee, metadata, null);
-      marquee.classList.add('fallback');
-    }
-  }, WAIT_TIME_MAX);
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('previewFallback')) {
+    // This query param ensures authors can verify the fallback looks good before publishing live.
+    // Requirement:
+    // As long as we add easy way for authors to preview their fallback content (via query param)
+    // Then we don't have to hardcode any fallbacks in the code.
+    await loadFallback(marquee, fallbackVariants, metadata);
+    return;
+  }
 
-  const selectedId = await getMarqueeId();
-  const allMarqueesJson = await getAllMarquees(metadata.promoid || 'homepage');
-  await renderMarquee(marquee, allMarqueesJson, selectedId);
+  try {
+    const [selectedId, allMarqueesJson] = await Promise.all([
+      getMarqueeId(),
+      getAllMarquees(promoId, origin),
+    ]);
+    await renderMarquee(marquee, allMarqueesJson, selectedId, metadata);
+  } catch (e) {
+    await loadFallback(marquee, fallbackVariants, metadata);
+  }
 }

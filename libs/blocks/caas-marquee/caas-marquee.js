@@ -169,7 +169,7 @@ function normalizeData(data) {
 }
 
 function getVideoHtml(src) {
-  return `<video autoplay muted playsinline> <source src="${src}" type="video/mp4"></video>`
+  return `<video autoplay muted playsinline> <source src="${src}" type="video/mp4"></video>`;
 }
 
 function getImageHtml(src, screen) {
@@ -184,7 +184,7 @@ function getImageHtml(src, screen) {
         <source type="image/webp" srcset="${src}?width=750&amp;format=webply&amp;optimize=medium">
         <source type="image/${format}" srcset="${src}?width=2000&amp;format=${format}&amp;optimize=medium" media="(min-width: 600px)">
         <img loading="${loadingType}" alt src="${src}?width=750&amp;format=${format}&amp;optimize=medium" width="${width}" height="${height}" ${fetchPriority} ${style}>
-  </picture>`
+  </picture>`;
 }
 
 function getContent(src, screen) {
@@ -198,18 +198,13 @@ function getContent(src, screen) {
     inner = getVideoHtml(src);
   }
   if (screen === 'split') {
-    return `<div data-valign="middle" class="asset image bleed">${inner}</div>`
+    return `<div data-valign="middle" class="asset image bleed">${inner}</div>`;
   }
-  return `<div class=${screen}-only>${inner}</div>`
+  return `<div class=${screen}-only>${inner}</div>`;
 }
 
 function getLoadingSpinnerHtml() {
-  const spinner = `<div class="lds-ring LOADING">
-      <div></div>
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>`;
+  const spinner = '<div class="lds-ring LOADING"><div></div><div></div><div></div><div></div></div>';
   return spinner;
 }
 
@@ -225,7 +220,11 @@ function getLoadingSpinnerHtml() {
  */
 function getModalHtml(ctaUrl, classes, ctaText) {
   const [fragment, hash] = ctaUrl.split('#');
-  return `<a href="#${hash}" data-modal-path="${fragment}" data-modal-hash="#${hash}" daa-ll="${ctaText}" class="modal link-block ${classes}">${ctaText}</a>`
+  return `<a href="#${hash}" 
+    data-modal-path="${fragment}" 
+    data-modal-hash="#${hash}"
+    daa-ll="${ctaText}" 
+    class="modal link-block ${classes}">${ctaText}</a>`;
 }
 
 const isValidModal = (u) => VALID_MODAL_RE.test(u);
@@ -238,8 +237,8 @@ function getCtaHtml(url, text, classes) {
 }
 
 function getCtaClasses(ctaStyle, size) {
-  return BUTTON_STYLES.includes(ctaStyle) 
-    ? `con-button ${ctaStyle} button-${TEXT_SIZE[size]} button-justified-mobile` 
+  return BUTTON_STYLES.includes(ctaStyle)
+    ? `con-button ${ctaStyle} button-${TEXT_SIZE[size]} button-justified-mobile`
     : '';
 }
 
